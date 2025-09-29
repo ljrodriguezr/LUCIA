@@ -1,19 +1,38 @@
+/* Estilos generales del cuerpo */
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f4f4f4;
+    background-color: #e9ebee; /* Un gris claro suave */
     color: #333;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
 
+/* Estilos para el contenedor principal del contenido */
+.content-container {
+    flex: 1;
+    padding: 2rem;
+    max-width: 800px;
+    margin: 2rem auto;
+    background-color: #ffffff; /* Fondo blanco para el contenido */
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1); /* Sombra más pronunciada */
+}
+
+/* Estilos de encabezado y navegación */
 header {
-    background-color: #333;
+    background-color: #3f51b5; /* Azul índigo */
     color: #fff;
-    padding: 1rem;
+    padding: 1.5rem 1rem;
     text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2.5rem;
 }
 
 nav ul {
@@ -21,59 +40,100 @@ nav ul {
     padding: 0;
     display: flex;
     justify-content: center;
+    margin: 0.5rem 0 0;
 }
 
 nav ul li a {
     color: #fff;
     text-decoration: none;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    border-radius: 20px;
+    transition: background-color 0.3s ease;
 }
 
-main {
-    flex: 1;
-    padding: 2rem;
-    max-width: 800px;
-    margin: 0 auto;
-    background-color: #fff;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+nav ul li a:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Efecto hover sutil */
 }
 
+/* Estilos de formularios mejorados */
 form {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #555;
 }
 
 input[type="text"],
-input[type="email"] {
-    padding: 0.5rem;
+input[type="email"],
+input[type="password"] {
+    padding: 0.75rem;
     border: 1px solid #ccc;
-    border-radius: 4px;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
 }
 
+input:focus {
+    border-color: #3f51b5; /* Color del borde al enfocar */
+    outline: none; /* Eliminar el contorno por defecto */
+}
+
+/* Estilos de botones */
 button[type="submit"] {
-    padding: 0.75rem;
+    padding: 1rem;
     border: none;
-    background-color: #5cb85c;
+    background-color: #3f51b5; /* Mismo color que el encabezado */
     color: white;
+    font-size: 1rem;
+    font-weight: bold;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
 }
 
 button[type="submit"]:hover {
-    background-color: #4cae4c;
+    background-color: #303f9f; /* Un tono más oscuro */
 }
 
-ul {
-    list-style-type: disc;
-    padding-left: 20px;
-}
-
+/* Estilos de pie de página */
 footer {
     text-align: center;
     padding: 1rem;
     background-color: #333;
     color: #fff;
     margin-top: auto;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos para mensajes flash/alertas */
+.alert {
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.alert-success {
+    color: #3c763d;
+    background-color: #dff0d8;
+    border-color: #d6e9c6;
+}
+
+.alert-error {
+    color: #a94442;
+    background-color: #f2dede;
+    border-color: #ebccd1;
 }
