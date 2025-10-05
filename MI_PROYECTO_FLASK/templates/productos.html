@@ -23,7 +23,8 @@
             <tbody>
                 {% for producto in productos %}
                 <tr>
-                    <th scope="row">{{ producto.id_producto }}</th>
+                    <!-- CORRECCIÓN 1: Usar 'producto.id' en lugar de 'producto.id_producto' si el campo es 'id' -->
+                    <th scope="row">{{ producto.id }}</th>
                     <td>{{ producto.nombre }}</td>
                     <td><span class="badge bg-success">${{ "%.2f"|format(producto.precio) }}</span></td>
                     <td>
@@ -32,14 +33,16 @@
                         </span>
                     </td>
                     <td class="text-center" style="min-width: 180px;">
-                        <a href="{{ url_for('editar_producto', id_producto=producto.id_producto) }}" class="btn btn-sm btn-warning me-2">
+                        <!-- CORRECCIÓN 2: Usar 'id=producto.id' -->
+                        <a href="{{ url_for('editar_producto', id=producto.id) }}" class="btn btn-sm btn-warning me-2">
                             ✏ Editar
                         </a>
                         
                         <!-- BOTÓN PARA ABRIR EL MODAL DE CONFIRMACIÓN -->
                         <button type="button" class="btn btn-sm btn-danger" 
                                 data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" 
-                                data-producto-id="{{ producto.id_producto }}" 
+                                <!-- CORRECCIÓN 3: Usar 'data-producto-id="{{ producto.id }}"' -->
+                                data-producto-id="{{ producto.id }}" 
                                 data-producto-nombre="{{ producto.nombre }}">
                             🗑 Eliminar
                         </button>
@@ -102,8 +105,8 @@
             modalTitle.textContent = nombreProducto;
             
             // 2. Actualizar la acción del formulario con el ID del producto
-            // Asegúrate de que Flask reconozca esta URL: /eliminar/<int:id_producto>
-            deleteForm.action = '{{ url_for("eliminar_producto", id_producto=0) }}'.replace('0', idProducto);
+            // CORRECCIÓN 4: Usar 'id=0' en la URL base, que es lo que espera la ruta de Python
+            deleteForm.action = '{{ url_for("eliminar_producto", id=0) }}'.replace('0', idProducto);
         });
     }
 </script>

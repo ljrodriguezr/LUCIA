@@ -5,14 +5,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # Inicializar la aplicación Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'una-clave-super-secreta' # ¡Mantén esta clave segura!
+# ¡IMPORTANTE! Reemplaza 'una-clave-super-secreta' por una clave generada aleatoriamente en producción.
+app.config['SECRET_KEY'] = 'una-clave-super-secreta' 
 
-# --- Configuración de MySQL (Asegúrate de que estas credenciales sean correctas) ---
+# --- Configuración de MySQL ---
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = ''
 app.config['MYSQL_DB'] = 'desarrollo_web'
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor' # Para que los resultados sean diccionarios, más fácil de usar en Jinja2
+app.config['MYSQL_CURSORCLASS'] = 'DictCursor' # Resultados como diccionarios
 
 # Inicializar Flask-MySQLdb y Flask-Login
 mysql = MySQL(app)
@@ -20,30 +21,32 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# ESTE ES EL PRIMER CAMBIO: Traducir el mensaje por defecto de login_required
+# Mensajes traducidos para Flask-Login
 login_manager.login_message = 'Debes iniciar sesión para acceder a esta página.'
 login_manager.login_message_category = 'warning' 
 
 # --- Modelo de Usuario ---
 class User(UserMixin):
-    def _init_(self, id, username, password):
+    # CORRECCIÓN 1: Argumentos opcionales para resolver el TypeError al instanciar.
+    def __init__(self, id=None, username=None, password=None):  
         self.id = id
         self.username = username
         self.password = password
 
-# Función para cargar el usuario
+# Función para cargar el usuario (requerido por Flask-Login)
 @login_manager.user_loader
 def load_user(user_id):
     cur = mysql.connection.cursor()
+    # Usamos 'users' como la tabla de registro (según tu error más reciente)
     cur.execute("SELECT id, username, password FROM users WHERE id = %s", (user_id,))
     user_data = cur.fetchone()
     cur.close()
     if user_data:
-        # Usa el nombre de la columna para acceder a los datos
-        return User(id=user_data['id'], username=user_data['username'], password=user_data['password'])
+        # CORRECCIÓN: Usa el orden posicional (sin id=, username=) para ser más seguro
+        return User(user_data['id'], user_data['username'], user_data['password'])
     return None
 
-# --- Rutas de Autenticación (Alertas traducidas) ---
+# --- Rutas de Autenticación ---
 
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
@@ -52,12 +55,10 @@ def registro():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
 
-        # Validación inicial de campos vacíos, incluyendo la confirmación
         if not username or not password or not confirm_password:
             flash('Todos los campos son obligatorios.', 'error')
             return redirect(url_for('registro'))
         
-        # VALIDAR QUE LAS CONTRASEÑAS COINCIDAN
         if password != confirm_password:
             flash('Error: Las contraseñas no coinciden. Por favor, revísalas.', 'error')
             return redirect(url_for('registro'))
@@ -68,7 +69,7 @@ def registro():
 
         cur = mysql.connection.cursor()
         # Verificar si el usuario ya existe
-        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
         existing_user = cur.fetchone()
         
         if existing_user:
@@ -87,6 +88,8 @@ def registro():
             return redirect(url_for('login'))
         except Exception as e:
             print(f"Error al registrar el usuario: {e}")
+            # Intenta hacer rollback si algo falla
+            mysql.connection.rollback() 
             cur.close()
             flash('Ocurrió un error inesperado al registrar el usuario. Inténtalo de nuevo.', 'error')
             return redirect(url_for('registro'))
@@ -109,10 +112,11 @@ def login():
         cur.close()
         
         if user_data and check_password_hash(user_data['password'], password):
-            user = User(id=user_data['id'], username=user_data['username'], password=user_data['password'])
+            # CORRECCIÓN 2: Uso correcto de la indentación y llamada posicional
+            user = User(user_data['id'], user_data['username'], user_data['password'])
             login_user(user)
             flash(f'¡Bienvenido, {username}! Has iniciado sesión con éxito.', 'success')
-            return redirect(url_for('leer_productos')) # Redirige a la lista de productos
+            return redirect(url_for('leer_productos')) 
         else:
             flash('Inicio de sesión fallido. Revisa tu nombre de usuario y contraseña.', 'error')
             return redirect(url_for('login'))
@@ -127,9 +131,8 @@ def logout():
     return redirect(url_for('login'))
 
 
-# --- Rutas del CRUD de Productos (Alertas traducidas) ---
+# --- Rutas del CRUD de Productos ---
 
-# Ruta principal: Redirige a la lista de productos
 @app.route('/')
 @login_required
 def index():
@@ -140,7 +143,8 @@ def index():
 @login_required
 def leer_productos():
     cur = mysql.connection.cursor() 
-    cur.execute("SELECT * FROM productos ORDER BY id_producto DESC")
+    # ASUNCIÓN: El campo primario de la tabla 'productos' se llama 'id'
+    cur.execute("SELECT * FROM productos ORDER BY id DESC")
     productos = cur.fetchall()
     cur.close()
     
@@ -181,6 +185,8 @@ def crear_producto():
             return redirect(url_for('leer_productos'))
         except Exception as e:
             print(f"Error al insertar producto: {e}")
+            mysql.connection.rollback()
+            cur.close()
             flash('Ocurrió un error al guardar el producto. Inténtalo de nuevo.', 'error')
             return redirect(url_for('crear_producto'))
     
@@ -188,9 +194,10 @@ def crear_producto():
     return render_template('formulario_producto.html', producto=None, action='crear')
 
 # 3. Actualizar Producto (Update)
-@app.route('/editar/<int:id_producto>', methods=['GET', 'POST'])
+@app.route('/editar/<int:id>', methods=['GET', 'POST'])
 @login_required
-def editar_producto(id_producto):
+# ASUNCIÓN: Cambiamos 'id_producto' por 'id' para estandarizar
+def editar_producto(id):
     cur = mysql.connection.cursor()
     
     if request.method == 'POST':
@@ -201,33 +208,37 @@ def editar_producto(id_producto):
         # Validación de Datos (similar a crear)
         if not nombre or not precio or not stock:
             flash('Todos los campos son obligatorios.', 'error')
-            return redirect(url_for('editar_producto', id_producto=id_producto))
+            return redirect(url_for('editar_producto', id=id))
         
         try:
             precio_float = float(precio)
             stock_int = int(stock)
             if precio_float <= 0 or stock_int < 0:
                 flash('El precio debe ser positivo y el stock no puede ser negativo.', 'error')
-                return redirect(url_for('editar_producto', id_producto=id_producto))
+                return redirect(url_for('editar_producto', id=id))
         except ValueError:
             flash('El precio debe ser un número decimal y el stock un entero.', 'error')
-            return redirect(url_for('editar_producto', id_producto=id_producto))
+            return redirect(url_for('editar_producto', id=id))
         # Fin de la Validación
         
         try:
-            query = "UPDATE productos SET nombre=%s, precio=%s, stock=%s WHERE id_producto=%s"
-            cur.execute(query, (nombre, precio_float, stock_int, id_producto))
+            # ASUNCIÓN: Cambiamos 'id_producto' por 'id' en la consulta
+            query = "UPDATE productos SET nombre=%s, precio=%s, stock=%s WHERE id=%s"
+            cur.execute(query, (nombre, precio_float, stock_int, id))
             mysql.connection.commit()
             cur.close()
             flash(f'Producto "{nombre}" actualizado exitosamente.', 'success')
             return redirect(url_for('leer_productos'))
         except Exception as e:
             print(f"Error al actualizar producto: {e}")
+            mysql.connection.rollback()
+            cur.close()
             flash('Ocurrió un error al actualizar el producto. Inténtalo de nuevo.', 'error')
-            return redirect(url_for('editar_producto', id_producto=id_producto))
+            return redirect(url_for('editar_producto', id=id))
     
     # Si es GET, se carga el producto para mostrarlo en el formulario
-    cur.execute("SELECT * FROM productos WHERE id_producto = %s", (id_producto,))
+    # ASUNCIÓN: Cambiamos 'id_producto' por 'id' en la consulta
+    cur.execute("SELECT * FROM productos WHERE id = %s", (id,))
     producto = cur.fetchone()
     cur.close()
 
@@ -236,16 +247,18 @@ def editar_producto(id_producto):
         return redirect(url_for('leer_productos'))
         
     # Se pasa el objeto 'producto' y la acción 'editar'
-    return render_template('formulario_producto.html', producto=producto, action='editar', id_producto=id_producto)
+    return render_template('formulario_producto.html', producto=producto, action='editar', id=id)
 
 # 4. Eliminar Producto (Delete)
-@app.route('/eliminar/<int:id_producto>', methods=['POST'])
+@app.route('/eliminar/<int:id>', methods=['POST'])
 @login_required
-def eliminar_producto(id_producto):
+# ASUNCIÓN: Cambiamos 'id_producto' por 'id'
+def eliminar_producto(id):
     try:
         cur = mysql.connection.cursor()
-        query = "DELETE FROM productos WHERE id_producto = %s"
-        cur.execute(query, (id_producto,))
+        # ASUNCIÓN: Cambiamos 'id_producto' por 'id' en la consulta
+        query = "DELETE FROM productos WHERE id = %s"
+        cur.execute(query, (id,))
         mysql.connection.commit()
         
         # Revisa si se eliminó alguna fila
@@ -258,12 +271,13 @@ def eliminar_producto(id_producto):
         return redirect(url_for('leer_productos'))
     except Exception as e:
         print(f"Error al eliminar producto: {e}")
+        mysql.connection.rollback()
         flash('Ocurrió un error al intentar eliminar el producto.', 'error')
         return redirect(url_for('leer_productos'))
 
 
 # -----------------------------------------------
-# --- NUEVAS RUTAS: CRUD de Clientes (Cliente) ---
+# --- CRUD de Clientes ---
 # -----------------------------------------------
 
 # 1. Leer Clientes (Read)
@@ -271,8 +285,8 @@ def eliminar_producto(id_producto):
 @login_required
 def leer_clientes():
     cur = mysql.connection.cursor() 
-    # Asegúrate de que tu tabla se llama 'clientes' o 'cliente' en la DB
-    cur.execute("SELECT * FROM clientes ORDER BY id_cliente DESC")
+    # ASUNCIÓN: El campo primario de la tabla 'clientes' se llama 'id'
+    cur.execute("SELECT * FROM clientes ORDER BY id DESC")
     clientes = cur.fetchall()
     cur.close()
     
@@ -283,64 +297,91 @@ def leer_clientes():
 @login_required
 def crear_cliente():
     if request.method == 'POST':
+        # Asumo que estos son los campos según tu código y el diseño de la DB
         nombre = request.form['nombre']
+        apellido = request.form['apellido'] # Agregando campo 'apellido' de la DB
+        documento = request.form['documento'] # Agregando campo 'documento'
+        direccion = request.form['direccion'] # Agregando campo 'direccion'
         email = request.form['email']
-        telefono = request.form['telefono'] # Nuevo campo
+        telefono = request.form['telefono'] 
 
         # --- Validación de Datos ---
-        if not nombre or not email or not telefono:
+        if not nombre or not apellido or not documento or not direccion or not email or not telefono:
             flash('Todos los campos del cliente son obligatorios.', 'error')
             return redirect(url_for('crear_cliente'))
         # ---------------------------
 
         try:
             cur = mysql.connection.cursor()
-            # Asumiendo que la tabla tiene id_cliente, nombre, email, telefono
-            query = "INSERT INTO clientes (nombre, email, telefono) VALUES (%s, %s, %s)"
-            cur.execute(query, (nombre, email, telefono))
+            # Insertamos el 'usuario_id' del usuario actual (current_user)
+            query = """
+            INSERT INTO clientes (usuario_id, nombre, apellido, documento, direccion, email, telefono) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cur.execute(query, (
+                current_user.id, # Clave Foránea del usuario logueado
+                nombre, 
+                apellido, 
+                documento, 
+                direccion, 
+                email, 
+                telefono
+            ))
             mysql.connection.commit()
             cur.close()
-            flash(f'Cliente "{nombre}" creado exitosamente.', 'success')
+            flash(f'Cliente "{nombre} {apellido}" creado exitosamente.', 'success')
             return redirect(url_for('leer_clientes'))
         except Exception as e:
             print(f"Error al insertar cliente: {e}")
-            flash('Ocurrió un error al guardar el cliente. Inténtalo de nuevo.', 'error')
+            mysql.connection.rollback()
+            cur.close()
+            # Este error puede ser por duplicidad de email/documento o clave foránea rota
+            flash('Ocurrió un error al guardar el cliente. Revisa si el email o documento ya existen. Detalle: ' + str(e), 'error')
             return redirect(url_for('crear_cliente'))
     
     # Renderiza el formulario si es GET
     return render_template('formulario_cliente.html', cliente=None, action='crear')
 
 # 3. Actualizar Cliente (Update)
-@app.route('/editar_cliente/<int:id_cliente>', methods=['GET', 'POST'])
+@app.route('/editar_cliente/<int:id>', methods=['GET', 'POST'])
 @login_required
-def editar_cliente(id_cliente):
+# ASUNCIÓN: Cambiamos 'id_cliente' por 'id'
+def editar_cliente(id):
     cur = mysql.connection.cursor()
     
     if request.method == 'POST':
         nombre = request.form['nombre']
+        apellido = request.form['apellido']
+        documento = request.form['documento']
+        direccion = request.form['direccion']
         email = request.form['email']
         telefono = request.form['telefono']
         
         # Validación de Datos
-        if not nombre or not email or not telefono:
+        if not nombre or not apellido or not documento or not direccion or not email or not telefono:
             flash('Todos los campos del cliente son obligatorios.', 'error')
-            return redirect(url_for('editar_cliente', id_cliente=id_cliente))
-        # Fin de la Validación
+            return redirect(url_for('editar_cliente', id=id))
         
         try:
-            query = "UPDATE clientes SET nombre=%s, email=%s, telefono=%s WHERE id_cliente=%s"
-            cur.execute(query, (nombre, email, telefono, id_cliente))
+            query = """
+            UPDATE clientes 
+            SET nombre=%s, apellido=%s, documento=%s, direccion=%s, email=%s, telefono=%s 
+            WHERE id=%s
+            """
+            cur.execute(query, (nombre, apellido, documento, direccion, email, telefono, id))
             mysql.connection.commit()
             cur.close()
-            flash(f'Cliente "{nombre}" actualizado exitosamente.', 'success')
+            flash(f'Cliente "{nombre} {apellido}" actualizado exitosamente.', 'success')
             return redirect(url_for('leer_clientes'))
         except Exception as e:
             print(f"Error al actualizar cliente: {e}")
+            mysql.connection.rollback()
+            cur.close()
             flash('Ocurrió un error al actualizar el cliente. Inténtalo de nuevo.', 'error')
-            return redirect(url_for('editar_cliente', id_cliente=id_cliente))
+            return redirect(url_for('editar_cliente', id=id))
     
     # Si es GET, se carga el cliente para mostrarlo en el formulario
-    cur.execute("SELECT * FROM clientes WHERE id_cliente = %s", (id_cliente,))
+    cur.execute("SELECT * FROM clientes WHERE id = %s", (id,))
     cliente = cur.fetchone()
     cur.close()
 
@@ -349,19 +390,19 @@ def editar_cliente(id_cliente):
         return redirect(url_for('leer_clientes'))
         
     # Se pasa el objeto 'cliente' y la acción 'editar'
-    return render_template('formulario_cliente.html', cliente=cliente, action='editar', id_cliente=id_cliente)
+    return render_template('formulario_cliente.html', cliente=cliente, action='editar', id=id)
 
 # 4. Eliminar Cliente (Delete)
-@app.route('/eliminar_cliente/<int:id_cliente>', methods=['POST'])
+@app.route('/eliminar_cliente/<int:id>', methods=['POST'])
 @login_required
-def eliminar_cliente(id_cliente):
+# ASUNCIÓN: Cambiamos 'id_cliente' por 'id'
+def eliminar_cliente(id):
     try:
         cur = mysql.connection.cursor()
-        query = "DELETE FROM clientes WHERE id_cliente = %s"
-        cur.execute(query, (id_cliente,))
+        query = "DELETE FROM clientes WHERE id = %s"
+        cur.execute(query, (id,))
         mysql.connection.commit()
         
-        # Revisa si se eliminó alguna fila
         if cur.rowcount > 0:
             flash('Cliente eliminado exitosamente.', 'success')
         else:
@@ -371,23 +412,14 @@ def eliminar_cliente(id_cliente):
         return redirect(url_for('leer_clientes'))
     except Exception as e:
         print(f"Error al eliminar cliente: {e}")
-        flash('Ocurrió un error al intentar eliminar el cliente.', 'error')
+        mysql.connection.rollback()
+        flash('Ocurrió un error al intentar eliminar el cliente. Asegúrate de que no tenga formularios asociados.', 'error')
         return redirect(url_for('leer_clientes'))
 
-# --- Rutas antiguas que ya no se usan (comentadas) ---
-# @app.route('/profile')
-# @login_required
-# def profile():
-#    return redirect(url_for('leer_productos')) 
 
-# @app.route('/')
-# def home():
-#    return render_template('index.html')
-
-# @app.route('/formulario')
-# def formulario():
-#    return render_template('formulario.html')
-
-
-if __name__ == '_main_':
+# -----------------------------------------------
+# --- EJECUCIÓN ---
+# -----------------------------------------------
+if __name__ == '__main__':
+    # CORRECCIÓN 3: Corregir el nombre de la variable '__main__' (doble guion bajo)
     app.run(debug=True)

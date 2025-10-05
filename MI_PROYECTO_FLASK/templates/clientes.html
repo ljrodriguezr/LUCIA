@@ -43,7 +43,8 @@
                         <td>{{ cliente.email }}</td>
                         <td>{{ cliente.telefono }}</td>
                         <td class="text-center">
-                            <a href="{{ url_for('editar_cliente', id_cliente=cliente.id_cliente) }}" class="btn btn-sm btn-info text-white me-2">
+                            <!-- CORRECCIÓN 1: Cambiado 'id_cliente=' por 'id=' en el url_for de editar_cliente -->
+                            <a href="{{ url_for('editar_cliente', id=cliente.id_cliente) }}" class="btn btn-sm btn-info text-white me-2">
                                 <i class="bi bi-pencil-square"></i> Editar
                             </a>
                             <!-- Botón que activa el modal de confirmación -->
@@ -88,9 +89,15 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var confirmDeleteModal = document.getElementById('confirmDeleteModal');
+            
+            if (!confirmDeleteModal) {
+                return; // Salir si el modal no existe.
+            }
+
             confirmDeleteModal.addEventListener('show.bs.modal', function (event) {
                 // Botón que activó el modal
                 var button = event.relatedTarget;
+                // Los atributos data-* del botón se llaman 'data-id' y 'data-nombre'
                 var clienteId = button.getAttribute('data-id');
                 var clienteNombre = button.getAttribute('data-nombre');
                 
@@ -100,7 +107,9 @@
 
                 // Actualizar la acción del formulario
                 var deleteForm = confirmDeleteModal.querySelector('#deleteForm');
-                deleteForm.action = '{{ url_for("eliminar_cliente", id_cliente=0) }}'.replace('0', clienteId);
+                
+                // CORRECCIÓN 2: Cambiado 'id_cliente=0' por 'id=0' para que coincida con la ruta de Flask.
+                deleteForm.action = '{{ url_for("eliminar_cliente", id=0) }}'.replace('0', clienteId);
             });
         });
     </script>
